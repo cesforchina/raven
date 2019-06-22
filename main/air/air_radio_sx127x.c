@@ -1,10 +1,16 @@
+#include "target.h"
+
 #include "air/air.h"
 
 #include "io/sx127x.h"
 
 #include "rc/telemetry.h"
 
+#include "util/macros.h"
+
 #include "air_radio_sx127x.h"
+
+#if defined(USE_RADIO_SX127X)
 
 void air_radio_init(air_radio_t *radio)
 {
@@ -51,6 +57,8 @@ static void air_radio_sx127x_set_lora_mode_parameters(air_radio_t *radio)
 
 bool air_radio_should_switch_to_faster_mode(air_radio_t *radio, air_mode_e current, air_mode_e faster, int telemetry_id, telemetry_t *t)
 {
+    UNUSED(radio);
+
     if (telemetry_id == TELEMETRY_ID_RX_SNR)
     {
         // For switching up, we require an SNR of 4dB per mode. This only affects
@@ -63,6 +71,9 @@ bool air_radio_should_switch_to_faster_mode(air_radio_t *radio, air_mode_e curre
 
 bool air_radio_should_switch_to_longer_mode(air_radio_t *radio, air_mode_e current, air_mode_e longer, int telemetry_id, telemetry_t *t)
 {
+    UNUSED(radio);
+    UNUSED(longer);
+
     if (telemetry_id == TELEMETRY_ID_RX_SNR)
     {
         // For switching down in FSK mode, we use an SNR of 5dB. From the
@@ -84,6 +95,9 @@ bool air_radio_should_switch_to_longer_mode(air_radio_t *radio, air_mode_e curre
 
 unsigned air_radio_confirmations_required_for_switching_modes(air_radio_t *radio, air_mode_e current, air_mode_e to)
 {
+    UNUSED(radio);
+    UNUSED(to);
+
     // Use 4 for MODE_5, 8 for MODE_4, ... up to a maximum of 15
     return MIN(15, 4 * ((AIR_MODE_LONGEST + 1) - current));
 }
@@ -233,6 +247,8 @@ time_micros_t air_radio_tx_failsafe_interval(air_radio_t *radio, air_mode_e mode
 
 time_micros_t air_radio_rx_failsafe_interval(air_radio_t *radio, air_mode_e mode)
 {
+    UNUSED(radio);
+
     switch (mode)
     {
     case AIR_MODE_1:
@@ -249,3 +265,5 @@ time_micros_t air_radio_rx_failsafe_interval(air_radio_t *radio, air_mode_e mode
     UNREACHABLE();
     return 0;
 }
+
+#endif

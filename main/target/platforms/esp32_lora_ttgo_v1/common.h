@@ -1,8 +1,10 @@
-// User button
-#define BUTTON_1_GPIO 0
+#include "target/platforms/esp32/single_button.h"
 
 // Buzzer
+#define USE_BEEPER
 #define BEEPER_GPIO 12 // This seems appropriate for TTGO v1 boards, since 12 can't be pulled low during boot and it's not connected to anything
+
+#define USE_RADIO_SX127X
 
 // SX127X connection
 // GPIO5  -- SX1278's SCK

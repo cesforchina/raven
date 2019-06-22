@@ -8,8 +8,13 @@
 
 #include "target.h"
 
+#if defined(USE_IDF_WMONITOR)
+#include <esp_event_loop.h>
+#include <idf_wmonitor/idf_wmonitor.h>
+#endif
+
 #include "air/air_radio.h"
-#include "air/air_radio_sx127x.h"
+#include "air/air_radio_driver.h"
 
 #if defined(USE_BLUETOOTH)
 #include "bluetooth/bluetooth.h"
@@ -42,7 +47,12 @@
 #include "util/macros.h"
 #include "util/time.h"
 
+#if defined(CONFIG_RAVEN_USE_PWM_OUTPUTS)
+static const char *TAG = "Main";
+#endif
+
 static air_radio_t radio = {
+#if defined(USE_RADIO_SX127X)
     .sx127x.spi_bus = SX127X_SPI_BUS,
     .sx127x.mosi = SX127X_GPIO_MOSI,
     .sx127x.miso = SX127X_GPIO_MISO,
@@ -50,7 +60,18 @@ static air_radio_t radio = {
     .sx127x.cs = SX127X_GPIO_CS,
     .sx127x.rst = SX127X_GPIO_RST,
     .sx127x.dio0 = SX127X_GPIO_DIO0,
+#if defined(SX127X_GPIO_TXEN)
+    .sx127x.txen = SX127X_GPIO_TXEN,
+#else
+    .sx127x.txen = HAL_GPIO_NONE,
+#endif
+#if defined(SX127X_GPIO_RXEN)
+    .sx127x.rxen = SX127X_GPIO_RXEN,
+#else
+    .sx127x.rxen = HAL_GPIO_NONE,
+#endif
     .sx127x.output_type = SX127X_OUTPUT_TYPE,
+#endif
 };
 
 static rc_t rc;
@@ -67,9 +88,49 @@ static void shutdown(void)
     system_shutdown();
 }
 
+#if defined(USE_IDF_WMONITOR)
+static esp_err_t system_event_callback(void *ctx, system_event_t *event)
+{
+    esp_err_t err;
+    if (settings_get_key_bool(SETTING_KEY_DEVELOPER_REMOTE_DEBUGGING))
+    {
+        if ((err = idf_wmonitor_event_handler(ctx, event)) != ESP_OK)
+        {
+            return err;
+        }
+    }
+    return ESP_OK;
+}
+#endif
+
+#if defined(USE_P2P)
+static bool should_start_p2p(void)
+{
+#if defined(USE_IDF_WMONITOR)
+    return !settings_get_key_bool(SETTING_KEY_DEVELOPER_REMOTE_DEBUGGING);
+#endif
+    return true;
+}
+#endif
+
 static void setting_changed(const setting_t *setting, void *user_data)
 {
     UNUSED(user_data);
+
+#if defined(CONFIG_RAVEN_USE_PWM_OUTPUTS)
+    if (SETTING_IS(setting, SETTING_KEY_RX_FS_SET_CUSTOM))
+    {
+        config_set_fs_channels(&rc.data);
+        LOG_I(TAG, "Saved current RC values as Custom F/S");
+    }
+#endif
+
+#if defined(USE_DEVELOPER_MENU)
+    if (SETTING_IS(setting, SETTING_KEY_DEVELOPER_REBOOT))
+    {
+        system_reboot();
+    }
+#endif
 
     if (SETTING_IS(setting, SETTING_KEY_POWER_OFF))
     {
@@ -80,15 +141,18 @@ static void setting_changed(const setting_t *setting, void *user_data)
 void raven_ui_init(void)
 {
     ui_config_t cfg = {
-        .button = BUTTON_1_GPIO,
-#if defined(USE_TOUCH_BUTTON)
-#if defined(BUTTON_1_GPIO_IS_TOUCH)
-        .button_is_touch = true,
-#else
-        .button_is_touch = false,
+        .buttons = {
+            [BUTTON_ID_ENTER] = BUTTON_CONFIG_FROM_GPIO(BUTTON_ENTER_GPIO),
+#if defined(USE_BUTTON_5WAY)
+            [BUTTON_ID_LEFT] = BUTTON_CONFIG_FROM_GPIO(BUTTON_LEFT_GPIO),
+            [BUTTON_ID_RIGHT] = BUTTON_CONFIG_FROM_GPIO(BUTTON_RIGHT_GPIO),
+            [BUTTON_ID_UP] = BUTTON_CONFIG_FROM_GPIO(BUTTON_UP_GPIO),
+            [BUTTON_ID_DOWN] = BUTTON_CONFIG_FROM_GPIO(BUTTON_DOWN_GPIO),
 #endif
-#endif
+        },
+#if defined(USE_BEEPER)
         .beeper = BEEPER_GPIO,
+#endif
 #ifdef USE_SCREEN
         .screen.i2c_bus = SCREEN_I2C_BUS,
         .screen.sda = SCREEN_GPIO_SDA,
@@ -123,7 +187,10 @@ void task_rmp(void *arg)
     UNUSED(arg);
 
 #if defined(USE_P2P)
-    p2p_start(&p2p);
+    if (should_start_p2p())
+    {
+        p2p_start(&p2p);
+    }
 #endif
     for (;;)
     {
@@ -164,21 +231,36 @@ void app_main(void)
 
     settings_rmp_init(&rmp);
 
+#if defined(USE_IDF_WMONITOR)
+    if (settings_get_key_bool(SETTING_KEY_DEVELOPER_REMOTE_DEBUGGING))
+    {
+        ESP_ERROR_CHECK(esp_event_loop_init(system_event_callback, NULL));
+        idf_wmonitor_opts_t opts = {
+            .config = IDF_WMONITOR_CONFIG_DEFAULT(),
+            .flags = IDF_WMONITOR_WAIT_FOR_CLIENT_IF_COREDUMP,
+        };
+        idf_wmonitor_start(&opts);
+    }
+#endif
+
 #if defined(USE_P2P)
-    p2p_init(&p2p, &rmp);
+    if (should_start_p2p())
+    {
+        p2p_init(&p2p, &rmp);
+    }
 #endif
 
     rc_init(&rc, &radio, &rmp);
 
     raven_ui_init();
 
-    xTaskCreatePinnedToCore(task_rc_update, "RC", 4096, NULL, 1, NULL, 1);
+    CREATE_TASK(task_rc_update, "RC", RC_TASK_STACK_SIZE, NULL, 1, NULL, 1);
 
 #if defined(USE_BLUETOOTH)
-    xTaskCreatePinnedToCore(task_bluetooh, "BLUETOOTH", 4096, &rc, 2, NULL, 0);
+    CREATE_TASK(task_bluetooh, "BLUETOOTH", 4096, &rc, 2, NULL, 0);
 #endif
-    xTaskCreatePinnedToCore(task_rmp, "RMP", 4096, NULL, 2, NULL, 0);
 
+    CREATE_TASK(task_rmp, "RMP", RMP_TASK_STACK_SIZE, NULL, 2, NULL, 0);
     // Start updating the UI after everything else is set up, since it queries other subsystems
-    xTaskCreatePinnedToCore(task_ui, "UI", 4096, NULL, 1, NULL, 0);
+    CREATE_TASK(task_ui, "UI", UI_TASK_STACK_SIZE, NULL, 1, NULL, 0);
 }

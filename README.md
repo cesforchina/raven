@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.com/RavenLRS/raven.svg?branch=master)](https://travis-ci.com/RavenLRS/raven)
 
 Raven is completely open source a long range system (LRS) based on LoRa
-which also supports peer to peer communications (so for example, 
+which also supports peer to peer communications (so for example,
 flight controllers in aircrafts can talk directly to each other).
 
 # Main features
@@ -12,11 +12,11 @@ flight controllers in aircrafts can talk directly to each other).
 - Full telemetry, integrated with the radio (voice alerts with OpenTX, etc...).
 - Supports 7 different bands: 147Mhz, 169Mhz, 315Mhz, 433Mhz, 470Mhz, 868Mhz and 915Mhz.
 - Up to 20 channels.
-- Support for P2P for aircraft to aircraft communication (either direct 
+- Support for P2P for aircraft to aircraft communication (either direct
 or via pilots on the ground). Allows, for example, displaying a radar in the
 OSD, automatically choosing a free VTX channel or automatically following
 another aircraft.
-- OLED screens, both on the TX and RX with channel monitor, telemetry 
+- OLED screens, both on the TX and RX with channel monitor, telemetry
 viewer and full configuration (requires at least one button on the board).
 - Bluetooth MSP bridge using the same serial port as the RC link (works with
 all the existing Betaflight/iNAV configurators with support for Bluetooth).
@@ -34,13 +34,15 @@ to 150hz with telemetry or 200hz without telemetry in the near future.
 
 ## Compiling Raven
 
-Raven is built on top of [esp-idf V3.0](https://github.com/espressif/esp-idf), so as a first step to compile
+Raven is built on top of [esp-idf](https://github.com/espressif/esp-idf), but it includes it
+as a submodule, so you should only need to install the [Xtensa toolchain](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/index.html)
+
 Raven you should install and configure it. Make sure to install version 3.0 by running
 `git checkout v3.0` (their instructions will give you the development version, not a stable one).
-Download the required submodules by running `git submodule init` followed by `git submodule update -r` in the same directory that you have cloned the esp-idf repository.
+Download the required submodules by running `git submodule init` followed by `git submodule update -r` in the same directory that you have cloned the esp-idf repository (i.e. no need to clone the master esp-idf repository).
 
-Clone the Raven repository by running `git clone --recursive https://github.com/RavenLRS/raven.git`. Don't
-forget the `--recursive` option, since Raven uses submodules.
+Then, clone the Raven repository by running `git clone --recursive https://github.com/RavenLRS/raven.git`. Don't forget the `--recursive` option, since Raven
+uses submodules.
 
 From the directory where you've cloned Raven, run `PORT=<port> TARGET=<target> make erase flash` to flash a new module. For
 updating a board which is already running Raven, omit the `erase` part to avoid wiping your configuration. The `erase` is only
@@ -59,5 +61,8 @@ If you want to see the debug logs, you can use the builtin esp-idf monitor by ru
 
 ## Hardware setup
 
-A typical setup of 100mw TX and RX for 433Mhz or 868/916Mhz costs $20-30. All popular ESP32 boards with LoRa are supported and can
-be used as both TX and RX.
+A typical setup of 100mw TX and RX for 433Mhz or 868/916Mhz costs $20-30. All popular ESP32 boards with LoRa are supported and can be used as both TX and RX.
+
+## Getting started
+
+Check [the documentation](docs/getting_started.md) to get up and running in no time!
